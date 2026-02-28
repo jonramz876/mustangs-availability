@@ -26,15 +26,28 @@ const ROSTER_DEFAULT = [
 
 const MIN_PLAYERS = 9;
 const UNSURE_RISK = 2;
-function persist(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+const SUPABASE_URL = "https://zzofcmmfehjakzpwgdzi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_doFuAoa10gp2umsbxH8eaQ_p4dc8aQ2";
+
+async function dbGet(key) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/kv?key=eq.${key}&select=value`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+  });
+  const rows = await res.json();
+  return rows.length ? JSON.parse(rows[0].value) : null;
 }
-function retrieve(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return fallback;
+
+async function dbSet(key, value) {
+  await fetch(`${SUPABASE_URL}/rest/v1/kv`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates",
+    },
+    body: JSON.stringify({ key, value: JSON.stringify(value) }),
+  });
 }
 
 const fmt = (d) => { const dt = new Date(d+"T12:00:00"); return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"}); };
@@ -63,13 +76,24 @@ export default function App() {
   const [draftGames, setDraftGames] = useState([]);
 
   useEffect(() => {
-    const r = retrieve("mustangs_v2_responses", {});
-    const g = retrieve("mustangs_v2_games", GAMES_DEFAULT);
-    const ro = retrieve("mustangs_v2_roster", ROSTER_DEFAULT);
-    setResponses(r); setGames(g); setRoster(ro); setLoaded(true);
+    (async () => {
+      try {
+        const [r, g, ro] = await Promise.all([
+          dbGet("mustangs_responses"),
+          dbGet("mustangs_games"),
+          dbGet("mustangs_roster"),
+        ]);
+        if (r) setResponses(r);
+        if (g) setGames(g);
+        if (ro) setRoster(ro);
+      } catch (e) {
+        console.error("DB load error:", e);
+      }
+      setLoaded(true);
+    })();
   }, []);
 
-  const saveR = (u) => { setResponses(u); persist("mustangs_v2_responses", u); };
+  const saveR = async (u) => { setResponses(u); await dbSet("mustangs_responses", u); };
 
   const selectPlayer = (name) => {
     setSelectedPlayer(name); setSubmitted(false); setEditing(false);
@@ -79,7 +103,7 @@ export default function App() {
 
   const submit = async () => {
     if (!games.every(g => availability[g.id])) { alert("Please answer all games first."); return; }
-    saveR({ ...responses, [selectedPlayer]: { availability, reasons, updatedAt: new Date().toISOString() } });
+    await saveR({ ...responses, [selectedPlayer]: { availability, reasons, updatedAt: new Date().toISOString() } });
     setSubmitted(true); setEditing(false);
   };
 
@@ -475,7 +499,7 @@ export default function App() {
               {!editingRoster
                 ?<button style={c.smb} onClick={()=>{setDraftRoster([...roster]);setEditingRoster(true);}}>Edit</button>
                 :<div style={{display:"flex",gap:"8px"}}>
-                  <button style={c.smb} onClick={()=>{setRoster(draftRoster);persist("mustangs_v2_roster",draftRoster);setEditingRoster(false);}}>Save</button>
+                  <button style={c.smb} onClick={async()=>{setRoster(draftRoster);await dbSet("mustangs_roster",draftRoster);setEditingRoster(false);}}>Save</button>
                   <button style={c.db} onClick={()=>setEditingRoster(false)}>Cancel</button>
                 </div>
               }
@@ -503,7 +527,7 @@ export default function App() {
               {!editingGames
                 ?<button style={c.smb} onClick={()=>{setDraftGames(games.map(g=>({...g})));setEditingGames(true);}}>Edit</button>
                 :<div style={{display:"flex",gap:"8px"}}>
-                  <button style={c.smb} onClick={()=>{setGames(draftGames);persist("mustangs_v2_games",draftGames);setEditingGames(false);}}>Save</button>
+                  <button style={c.smb} onClick={async()=>{setGames(draftGames);await dbSet("mustangs_games",draftGames);setEditingGames(false);}}>Save</button>
                   <button style={c.db} onClick={()=>setEditingGames(false)}>Cancel</button>
                 </div>
               }
