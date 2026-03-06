@@ -95,7 +95,7 @@ export default function App() {
           dbGet("mustangs_tournaments"),
         ]);
         if (r) setResponses(r);
-        if (g) setGames(g);
+        if (g) setGames([...g].sort((a,b)=>a.date.localeCompare(b.date)));
         if (ro) setRoster(ro);
         if (to) setTournaments(to);
       } catch (e) {
@@ -659,10 +659,11 @@ export default function App() {
                 ?<button style={c.smb} onClick={()=>{setDraftGames(games.map(g=>({...g})));setEditingGames(true);}}>Edit</button>
                 :<div style={{display:"flex",gap:"8px"}}>
                   <button style={c.smb} onClick={async()=>{
+                    const sorted=[...draftGames].sort((a,b)=>a.date.localeCompare(b.date));
                     const newResponses={};
                     Object.entries(responses).forEach(([player,data])=>{
                       const newAv={};const newRe={};
-                      draftGames.forEach(g=>{
+                      sorted.forEach(g=>{
                         if(data.availability?.[g.id]!==undefined) newAv[g.id]=data.availability[g.id];
                         if(data.reasons?.[g.id]) newRe[g.id]=data.reasons[g.id];
                       });
@@ -672,8 +673,8 @@ export default function App() {
                       });
                       newResponses[player]={...data,availability:newAv,reasons:newRe};
                     });
-                    setGames(draftGames);
-                    await dbSet("mustangs_games",draftGames);
+                    setGames(sorted);
+                    await dbSet("mustangs_games",sorted);
                     await saveR(newResponses);
                     setEditingGames(false);
                   }}>Save</button>
@@ -755,6 +756,72 @@ export default function App() {
             }
           </div>
 
+
+          {/* Reset Responses */}
+          <div style={c.card({borderTop:`3px solid #dc2626`})}>
+            <div style={{marginBottom:"12px"}}>
+              <span style={{...c.lbl, color:"#dc2626"}}>Reset Responses by Game / Tournament</span>
+              <div style={{fontSize:"0.78rem",color:TEXT_MID,fontFamily:"monospace",marginTop:"4px"}}>
+                Clears availability for a specific game or tournament only. All other responses are kept.
+              </div>
+            </div>
+
+            <div style={{marginBottom:"10px"}}>
+              <div style={{fontSize:"0.68rem",color:GOLD_DIM,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"1px",fontWeight:"700",marginBottom:"8px"}}>🏆 Tournaments</div>
+              {tournaments.map(t=>{
+                const count = roster.filter(p=>responses[p]?.availability?.[t.id]).length;
+                return (
+                  <div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid #f0e88a`}}>
+                    <div style={{fontFamily:"monospace",fontSize:"0.82rem"}}>
+                      <span style={{fontWeight:"700",color:TEXT_DARK}}>{t.label}</span>
+                      <span style={{color:TEXT_MID,marginLeft:"10px"}}>{t.dates}</span>
+                      <span style={{color:"#6b7280",marginLeft:"10px",fontSize:"0.75rem"}}>{count} response{count!==1?"s":""}</span>
+                    </div>
+                    <button style={c.db} onClick={async()=>{
+                      if(!window.confirm(`Clear all responses for "${t.label}"?`)) return;
+                      const updated={};
+                      Object.entries(responses).forEach(([player,data])=>{
+                        const newAv={...data.availability};
+                        const newRe={...data.reasons};
+                        delete newAv[t.id];
+                        delete newRe[t.id];
+                        updated[player]={...data,availability:newAv,reasons:newRe};
+                      });
+                      await saveR(updated);
+                    }}>Reset</button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div>
+              <div style={{fontSize:"0.68rem",color:TEXT_MID,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"1px",fontWeight:"700",marginBottom:"8px"}}>⚽ RYDSL Games</div>
+              {games.map(g=>{
+                const count = roster.filter(p=>responses[p]?.availability?.[g.id]).length;
+                return (
+                  <div key={g.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid #e5ecf5`}}>
+                    <div style={{fontFamily:"monospace",fontSize:"0.82rem"}}>
+                      <span style={{fontWeight:"700",color:TEXT_DARK}}>{g.day} {fmt(g.date)}</span>
+                      <span style={{color:TEXT_MID,marginLeft:"10px"}}>vs {g.opponent}</span>
+                      <span style={{color:"#6b7280",marginLeft:"10px",fontSize:"0.75rem"}}>{count} response{count!==1?"s":""}</span>
+                    </div>
+                    <button style={c.db} onClick={async()=>{
+                      if(!window.confirm(`Clear all responses for "${g.day} ${fmt(g.date)} vs ${g.opponent}"?`)) return;
+                      const updated={};
+                      Object.entries(responses).forEach(([player,data])=>{
+                        const newAv={...data.availability};
+                        const newRe={...data.reasons};
+                        delete newAv[g.id];
+                        delete newRe[g.id];
+                        updated[player]={...data,availability:newAv,reasons:newRe};
+                      });
+                      await saveR(updated);
+                    }}>Reset</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
         </div>
       )}
