@@ -652,29 +652,71 @@ export default function App() {
           </div>
 
           {/* Schedule */}
-          <div style={c.card({borderTop:`3px solid ${GOLD}`})}>
+          <div style={c.card({borderTop:`3px solid ${BLUE}`})}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
               <span style={c.lbl}>Schedule ({games.length} games)</span>
               {!editingGames
                 ?<button style={c.smb} onClick={()=>{setDraftGames(games.map(g=>({...g})));setEditingGames(true);}}>Edit</button>
                 :<div style={{display:"flex",gap:"8px"}}>
-                  <button style={c.smb} onClick={async()=>{setGames(draftGames);await dbSet("mustangs_games",draftGames);setEditingGames(false);}}>Save</button>
+                  <button style={c.smb} onClick={async()=>{
+                    const newResponses={};
+                    Object.entries(responses).forEach(([player,data])=>{
+                      const newAv={};const newRe={};
+                      draftGames.forEach(g=>{
+                        if(data.availability?.[g.id]!==undefined) newAv[g.id]=data.availability[g.id];
+                        if(data.reasons?.[g.id]) newRe[g.id]=data.reasons[g.id];
+                      });
+                      tournaments.forEach(t=>{
+                        if(data.availability?.[t.id]!==undefined) newAv[t.id]=data.availability[t.id];
+                        if(data.reasons?.[t.id]) newRe[t.id]=data.reasons[t.id];
+                      });
+                      newResponses[player]={...data,availability:newAv,reasons:newRe};
+                    });
+                    setGames(draftGames);
+                    await dbSet("mustangs_games",draftGames);
+                    await saveR(newResponses);
+                    setEditingGames(false);
+                  }}>Save</button>
                   <button style={c.db} onClick={()=>setEditingGames(false)}>Cancel</button>
                 </div>
               }
             </div>
-            {games.map(g=>(
-              <div key={g.id} style={{padding:"9px 0",borderBottom:`1px solid #e5ecf5`,fontFamily:"monospace",fontSize:"0.82rem",display:"flex",gap:"10px",flexWrap:"wrap",alignItems:"center"}}>
-                <span style={{color:TEXT_DARK,fontWeight:"700",minWidth:"80px"}}>{g.day} {fmt(g.date)}</span>
-                <span style={{color:TEXT_MID}}>{g.time}</span>
-                <span style={{padding:"1px 8px",borderRadius:"4px",fontSize:"0.72rem",fontWeight:"700",
-                  background:g.location==="Home"?"#dbeafe":"#fef9c3",
-                  color:g.location==="Home"?BLUE:"#92400e"}}>
-                  {g.location}
-                </span>
-                <span style={{color:TEXT_MID}}>vs {g.opponent}</span>
+            {!editingGames
+              ?<div>
+                {games.map(g=>(
+                  <div key={g.id} style={{padding:"9px 0",borderBottom:`1px solid #e5ecf5`,fontFamily:"monospace",fontSize:"0.82rem",display:"flex",gap:"10px",flexWrap:"wrap",alignItems:"center"}}>
+                    <span style={{color:TEXT_DARK,fontWeight:"700",minWidth:"80px"}}>{g.day} {fmt(g.date)}</span>
+                    <span style={{color:TEXT_MID}}>{g.time}</span>
+                    <span style={{padding:"1px 8px",borderRadius:"4px",fontSize:"0.72rem",fontWeight:"700",
+                      background:g.location==="Home"?"#dbeafe":"#fef9c3",
+                      color:g.location==="Home"?BLUE:"#92400e"}}>
+                      {g.location}
+                    </span>
+                    <span style={{color:TEXT_MID}}>vs {g.opponent}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+              :<div>
+                {draftGames.map((g,i)=>(
+                  <div key={g.id} style={{display:"flex",gap:"7px",marginBottom:"8px",alignItems:"center",flexWrap:"wrap"}}>
+                    <input style={{...c.inp,flex:"1 1 80px"}} placeholder="Date (YYYY-MM-DD)" value={g.date}
+                      onChange={e=>setDraftGames(arr=>{const n=[...arr];n[i]={...n[i],date:e.target.value};return n;})} />
+                    <input style={{...c.inp,flex:"0 0 50px"}} placeholder="Day" value={g.day}
+                      onChange={e=>setDraftGames(arr=>{const n=[...arr];n[i]={...n[i],day:e.target.value};return n;})} />
+                    <input style={{...c.inp,flex:"0 0 80px"}} placeholder="Time" value={g.time}
+                      onChange={e=>setDraftGames(arr=>{const n=[...arr];n[i]={...n[i],time:e.target.value};return n;})} />
+                    <select style={{...c.inp,flex:"0 0 90px"}} value={g.location}
+                      onChange={e=>setDraftGames(arr=>{const n=[...arr];n[i]={...n[i],location:e.target.value};return n;})}>
+                      <option>Home</option><option>Away</option>
+                    </select>
+                    <input style={{...c.inp,flex:"2 1 140px"}} placeholder="Opponent" value={g.opponent}
+                      onChange={e=>setDraftGames(arr=>{const n=[...arr];n[i]={...n[i],opponent:e.target.value};return n;})} />
+                    <button style={c.db} onClick={()=>setDraftGames(arr=>arr.filter((_,j)=>j!==i))}>✕</button>
+                  </div>
+                ))}
+                <button style={{...c.smb,marginTop:"8px"}} onClick={()=>setDraftGames(arr=>[...arr,{id:Date.now(),date:"",day:"",time:"7:30 PM",location:"Home",opponent:""}])}>+ Add Game</button>
+              </div>
+            }
           </div>
 
           {/* Tournaments */}
